@@ -1,69 +1,69 @@
+
 'use client';
 
-import type { Job } from '@/services/job-board';
+import type { Job } from '@/types/job'; // Use shared Job type
 import { searchJobs } from '@/services/job-board';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Search, MapPin, Filter } from 'lucide-react';
+import { Search, MapPin, Filter, Briefcase } from 'lucide-react'; // Added Briefcase
 import Link from 'next/link';
+
+// Define the type for the serialized job with 'id'
+type JobWithId = Job & { id: string };
 
 export default function JobSearchPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [location, setLocation] = useState('');
-  const [jobType, setJobType] = useState('');
-  const [experienceLevel, setExperienceLevel] = useState('');
-  const [jobs, setJobs] = useState<Job[]>([]);
+  const [jobType, setJobType] = useState(''); // Store value like "full-time"
+  const [experienceLevel, setExperienceLevel] = useState(''); // Store value like "entry"
+  const [jobs, setJobs] = useState<JobWithId[]>([]); // Use JobWithId type
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchJobs = async () => {
+  // Use useCallback to memoize fetchJobs function
+  const fetchJobs = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try {
-      // Add filtering logic to searchJobs when backend is implemented
-      const results = await searchJobs(searchTerm, location);
-      // Simulate filtering on the client-side for now
-      let filteredResults = results;
-      if (jobType) {
-        // Example filter - replace with actual API filtering
-        filteredResults = filteredResults.filter(job => job.title.toLowerCase().includes(jobType.toLowerCase()));
-      }
-       if (experienceLevel) {
-         // Example filter - replace with actual API filtering
-         // Assuming job description contains experience level info
-         filteredResults = filteredResults.filter(job => job.description.toLowerCase().includes(experienceLevel.toLowerCase()));
-       }
-
-      setJobs(filteredResults);
+        // Pass filters directly to the MongoDB service
+        const results = await searchJobs(searchTerm, location, jobType, experienceLevel);
+        setJobs(results); // Results are already serialized with 'id'
     } catch (err) {
       setError('Failed to fetch jobs. Please try again later.');
       console.error(err);
+      setJobs([]); // Clear jobs on error
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [searchTerm, location, jobType, experienceLevel]); // Dependencies for useCallback
+
 
   useEffect(() => {
-    fetchJobs();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Fetch on initial load
+    fetchJobs(); // Fetch on initial load and when filters change
+  }, [fetchJobs]); // fetchJobs is memoized, so this runs when its dependencies change
 
-  const handleSearch = (e: React.FormEvent) => {
+  const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    fetchJobs();
+    fetchJobs(); // Manually trigger fetch on form submit if needed (though it runs on filter change)
   };
+
+   const handleFilterChange = () => {
+     // No need to explicitly call fetchJobs here if useEffect handles it based on state changes
+     // If you prefer explicit trigger on button click:
+     // fetchJobs();
+   };
 
   return (
     <div className="container mx-auto py-8 px-4">
       <h1 className="text-3xl font-bold mb-8">Find Your Next Opportunity</h1>
 
       {/* Search and Filter Form */}
-      <form onSubmit={handleSearch} className="mb-8 p-6 bg-card rounded-lg shadow border border-border">
+      <form onSubmit={handleSearchSubmit} className="mb-8 p-6 bg-card rounded-lg shadow border border-border">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
           <div className="md:col-span-2">
             <Label htmlFor="search-term">Keywords</Label>
@@ -93,6 +93,7 @@ export default function JobSearchPage() {
               />
             </div>
           </div>
+           {/* "Search Jobs" button primarily for keyword/location search */}
           <Button type="submit" className="w-full md:w-auto">
             <Search className="mr-2 h-4 w-4" /> Search Jobs
           </Button>
@@ -100,12 +101,12 @@ export default function JobSearchPage() {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-4 items-end">
            <div>
              <Label htmlFor="job-type">Job Type</Label>
-             <Select value={jobType} onValueChange={setJobType}>
+             <Select value={jobType} onValueChange={(value) => setJobType(value === "all" ? "" : value)}>
               <SelectTrigger id="job-type">
                 <SelectValue placeholder="All Types" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All Types</SelectItem>
+                <SelectItem value="all">All Types</SelectItem>
                 <SelectItem value="full-time">Full-time</SelectItem>
                 <SelectItem value="part-time">Part-time</SelectItem>
                 <SelectItem value="contract">Contract</SelectItem>
@@ -115,12 +116,12 @@ export default function JobSearchPage() {
           </div>
            <div>
              <Label htmlFor="experience-level">Experience Level</Label>
-             <Select value={experienceLevel} onValueChange={setExperienceLevel}>
+             <Select value={experienceLevel} onValueChange={(value) => setExperienceLevel(value === "all" ? "" : value)}>
               <SelectTrigger id="experience-level">
                 <SelectValue placeholder="All Levels" />
               </SelectTrigger>
               <SelectContent>
-                 <SelectItem value="">All Levels</SelectItem>
+                 <SelectItem value="all">All Levels</SelectItem>
                  <SelectItem value="entry">Entry Level</SelectItem>
                  <SelectItem value="mid">Mid Level</SelectItem>
                  <SelectItem value="senior">Senior Level</SelectItem>
@@ -130,7 +131,8 @@ export default function JobSearchPage() {
            </div>
             {/* Add more filters as needed */}
             <div className="md:col-start-4 flex justify-end">
-                 <Button type="button" variant="outline" onClick={fetchJobs}>
+                 {/* This button might become redundant if useEffect triggers fetch on filter changes */}
+                 <Button type="button" variant="outline" onClick={handleFilterChange}>
                  <Filter className="mr-2 h-4 w-4" /> Apply Filters
                  </Button>
             </div>
@@ -169,13 +171,30 @@ export default function JobSearchPage() {
               <Card key={job.id} className="flex flex-col">
                 <CardHeader>
                   <CardTitle className="text-xl">{job.title}</CardTitle>
-                  <CardDescription>{job.company} - {job.location}</CardDescription>
+                  <CardDescription>
+                    {job.company} - {job.location}
+                  </CardDescription>
+                  {/* Optionally display Job Type / Experience */}
+                   <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground pt-1">
+                      {job.jobType && (
+                           <span className="flex items-center gap-1 capitalize">
+                             <Briefcase className="h-3 w-3" /> {job.jobType.replace('-', ' ')}
+                           </span>
+                       )}
+                       {job.experienceLevel && (
+                           <span className="flex items-center gap-1 capitalize">
+                              {/* Reuse icon or choose another */}
+                              <Briefcase className="h-3 w-3" /> {job.experienceLevel} Level
+                            </span>
+                       )}
+                    </div>
                 </CardHeader>
                 <CardContent className="flex-grow">
                   <p className="text-sm text-muted-foreground line-clamp-3">{job.description}</p>
                   <p className="text-sm font-medium mt-2">{job.salary}</p>
                 </CardContent>
                 <CardFooter>
+                  {/* Link uses the string 'id' provided by serialization */}
                   <Button asChild variant="default" size="sm">
                     <Link href={`/jobs/${job.id}`}>View Details</Link>
                   </Button>

@@ -1,20 +1,26 @@
+
 'use client';
 
-import type { Job } from '@/services/job-board';
+import type { Job } from '@/types/job'; // Use shared Job type
 import { getJob } from '@/services/job-board';
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Briefcase, MapPin, DollarSign, CheckCircle, ArrowLeft } from 'lucide-react';
+import { Briefcase, MapPin, DollarSign, CheckCircle, ArrowLeft, CalendarDays } from 'lucide-react'; // Added CalendarDays
 import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
+import { format } from 'date-fns'; // Import date-fns for formatting
+
+// Define the type for the serialized job with 'id'
+type JobWithId = Job & { id: string };
+
 
 export default function JobDetailPage() {
   const params = useParams<{ id: string }>();
   const jobId = params.id;
-  const [job, setJob] = useState<Job | null>(null);
+  const [job, setJob] = useState<JobWithId | null>(null); // Use JobWithId type
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isApplying, setIsApplying] = useState(false);
@@ -27,7 +33,7 @@ export default function JobDetailPage() {
       setIsLoading(true);
       setError(null);
       try {
-        const result = await getJob(jobId);
+        const result = await getJob(jobId); // Fetches from MongoDB via service
         if (result) {
           setJob(result);
         } else {
@@ -74,6 +80,11 @@ export default function JobDetailPage() {
     }
   };
 
+  // Helper to format date or return placeholder
+  const formatDate = (date: Date | undefined) => {
+     return date ? format(new Date(date), 'PPP') : 'Date not available'; // 'PPP' gives "Jan 1st, 2024"
+  };
+
   if (isLoading) {
     return (
       <div className="container mx-auto py-8 px-4 max-w-4xl">
@@ -86,6 +97,7 @@ export default function JobDetailPage() {
                 <Skeleton className="h-5 w-24" />
                 <Skeleton className="h-5 w-32" />
                 <Skeleton className="h-5 w-28" />
+                <Skeleton className="h-5 w-20" /> {/* Placeholder for Date Posted */}
             </div>
           </CardHeader>
           <CardContent>
@@ -121,9 +133,10 @@ export default function JobDetailPage() {
   }
 
   if (!job) {
+     // This case handles when the job ID is valid but the job isn't found
      return (
       <div className="container mx-auto py-8 px-4 text-center">
-        <p className="text-muted-foreground">Job details could not be loaded.</p>
+        <p className="text-muted-foreground">Job not found.</p>
          <Button variant="outline" asChild className="mt-4">
             <Link href="/jobs">
                  <ArrowLeft className="mr-2 h-4 w-4" /> Back to Jobs
@@ -146,19 +159,31 @@ export default function JobDetailPage() {
           <CardTitle className="text-3xl font-bold text-primary">{job.title}</CardTitle>
           <CardDescription className="text-lg">{job.company}</CardDescription>
            <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-muted-foreground pt-2">
-            <span className="flex items-center gap-1.5">
-              <Briefcase className="h-4 w-4" /> Full-time {/* Placeholder */}
-            </span>
+            {job.jobType && (
+                <span className="flex items-center gap-1.5 capitalize">
+                    <Briefcase className="h-4 w-4" /> {job.jobType.replace('-', ' ')}
+                </span>
+            )}
+            {job.experienceLevel && (
+                 <span className="flex items-center gap-1.5 capitalize">
+                   {/* Choose an appropriate icon or reuse Briefcase */}
+                    <Briefcase className="h-4 w-4" /> {job.experienceLevel} Level
+                 </span>
+            )}
              <span className="flex items-center gap-1.5">
                <MapPin className="h-4 w-4" /> {job.location}
              </span>
              <span className="flex items-center gap-1.5">
                <DollarSign className="h-4 w-4" /> {job.salary}
              </span>
+              <span className="flex items-center gap-1.5">
+                  <CalendarDays className="h-4 w-4" /> Posted: {formatDate(job.datePosted)}
+             </span>
            </div>
         </CardHeader>
         <CardContent>
           <h3 className="text-xl font-semibold mb-3">Job Description</h3>
+          {/* Use whitespace-pre-wrap to preserve formatting from the database */}
           <p className="text-foreground/90 whitespace-pre-wrap">{job.description}</p>
 
           {/* Add sections for Requirements, Responsibilities, Benefits etc. if available */}

@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState } from 'react';
@@ -7,22 +8,22 @@ import * as z from 'zod';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
+import { Label } from '@/components/ui/label'; // Keep if used outside Form components
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { postJob } from '@/services/job-board';
-import type { Job } from '@/services/job-board';
+import { postJob } from '@/services/job-board'; // Uses MongoDB service
+import type { Job } from '@/types/job'; // Use shared Job type
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation'; // Use App Router's router
 import { PlusCircle } from 'lucide-react';
 
-// Define Zod schema for form validation
+// Define Zod schema for form validation - matches the Job type structure
 const jobSchema = z.object({
   title: z.string().min(3, { message: 'Job title must be at least 3 characters long.' }),
   company: z.string().min(2, { message: 'Company name must be at least 2 characters long.' }),
   location: z.string().min(2, { message: 'Location must be at least 2 characters long.' }),
-  salary: z.string().min(3, { message: 'Salary information is required.' }),
+  salary: z.string().min(3, { message: 'Salary information is required.' }), // Keep as string for flexibility
   description: z.string().min(50, { message: 'Description must be at least 50 characters long.' }),
   jobType: z.enum(['full-time', 'part-time', 'contract', 'internship'], { required_error: "Job type is required." }),
   experienceLevel: z.enum(['entry', 'mid', 'senior', 'manager'], { required_error: "Experience level is required." }),
@@ -43,7 +44,7 @@ export default function PostJobPage() {
       location: '',
       salary: '',
       description: '',
-      // Default values for selects can be set if needed
+      // Explicitly set undefined or a default value if desired, matching enum types
       // jobType: undefined,
       // experienceLevel: undefined,
     },
@@ -52,36 +53,36 @@ export default function PostJobPage() {
   const onSubmit: SubmitHandler<JobFormData> = async (data) => {
     setIsSubmitting(true);
     try {
-      // Construct the Job object, id will be assigned by backend
-      const newJob: Omit<Job, 'id'> & { jobType?: string; experienceLevel?: string } = {
+      // Construct the Job object for the service - directly matches JobFormData now
+      // The service adds the datePosted field. _id is handled by MongoDB.
+      const newJobData: Omit<Job, '_id' | 'datePosted' | 'id'> = {
         title: data.title,
         company: data.company,
         location: data.location,
         salary: data.salary,
         description: data.description,
-        // Include optional fields if needed by backend
-        // jobType: data.jobType,
-        // experienceLevel: data.experienceLevel,
+        jobType: data.jobType,
+        experienceLevel: data.experienceLevel,
       };
 
-      // TODO: Replace with actual postJob API call
-      // const jobId = await postJob(newJob as Job); // Cast might be needed depending on Job interface
-      await new Promise(resolve => setTimeout(resolve, 1500)); // Simulate API call
-      const simulatedJobId = 'simulated-' + Math.random().toString(36).substring(7);
+      // Use the updated postJob service which interacts with MongoDB
+      const newJobId = await postJob(newJobData); // Returns the new string ID
 
       toast({
         title: 'Job Posted Successfully!',
         description: `The job "${data.title}" has been posted.`,
         variant: 'default',
       });
-      // Redirect to the newly posted job or employer dashboard
-      router.push(`/jobs/${simulatedJobId}`); // Redirect to a simulated job page for now
+
+      // Redirect to the newly posted job page using the actual ID from MongoDB
+      router.push(`/jobs/${newJobId}`);
       // router.push('/employer/dashboard'); // Or redirect to employer dashboard
+
     } catch (error) {
       console.error('Failed to post job:', error);
       toast({
         title: 'Error Posting Job',
-        description: 'Could not post the job. Please try again.',
+        description: error instanceof Error ? error.message : 'Could not post the job. Please try again.',
         variant: 'destructive',
       });
     } finally {
@@ -136,7 +137,7 @@ export default function PostJobPage() {
                   <FormItem>
                     <FormLabel>Location</FormLabel>
                     <FormControl>
-                      <Input placeholder="e.g., San Francisco, CA" {...field} />
+                      <Input placeholder="e.g., San Francisco, CA or Remote" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -196,9 +197,9 @@ export default function PostJobPage() {
                 name="salary"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Salary Range</FormLabel>
+                    <FormLabel>Salary Range / Compensation</FormLabel>
                     <FormControl>
-                      <Input placeholder="e.g., $100,000 - $120,000 per year" {...field} />
+                      <Input placeholder="e.g., $100,000 - $120,000/year or $50/hour" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -222,6 +223,7 @@ export default function PostJobPage() {
                   </FormItem>
                 )}
               />
+              {/* Footer moved outside the form fields but inside the form structure */}
               <CardFooter className="px-0 pt-6">
                  <Button type="submit" disabled={isSubmitting} size="lg">
                     {isSubmitting ? 'Posting Job...' : 'Post Job'}
@@ -230,6 +232,7 @@ export default function PostJobPage() {
             </form>
           </Form>
         </CardContent>
+         {/* CardFooter removed from here as it's now inside the form */}
       </Card>
     </div>
   );
